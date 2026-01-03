@@ -1,0 +1,7 @@
+{
+  "name": "NanaIA - Binaural Baby Sleep",
+  "description": "A soothing platform combining binaural beats and AI-composed ambient lullabies to help babies relax and sleep.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
