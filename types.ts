@@ -43,7 +43,7 @@ export interface AudioState {
   beatFreq: number;
   reverbMix: number;
   delayMix: number;
-  isAdaptiveNoise: boolean; // New flag
+  isAdaptiveNoise: boolean; 
 }
 
 export interface AgenticConfig {
@@ -56,10 +56,17 @@ export interface AgenticConfig {
   reasoning: string;
 }
 
+export interface MusicalSettings {
+  scale: 'Pentatonic' | 'Lydian' | 'Dorian' | 'Major' | 'Auto';
+  style: 'Pads' | 'Bells' | 'Piano' | 'Minimal' | 'Auto';
+  mood: 'Ethereal' | 'Warm' | 'Melancholic' | 'Cosmic' | 'Auto';
+}
+
 export interface PersonalizationParams {
   babyName?: string;
   babyType?: 'Sensitive' | 'Active' | 'Colic' | 'Newborn';
   currentEmotion?: 'Crying' | 'Restless' | 'Playful' | 'Overtired';
   timeOfDay?: 'Nap' | 'Night' | 'Witching Hour';
   environment?: 'City' | 'Quiet' | 'Stormy';
+  musicalSettings?: MusicalSettings; // Added advanced settings
 }

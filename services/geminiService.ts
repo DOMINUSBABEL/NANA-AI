@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
-import { Composition, AgenticConfig, PersonalizationParams } from "../types";
+import { Composition, AgenticConfig, PersonalizationParams, MusicalSettings } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
@@ -53,11 +53,8 @@ function getApproximateKey(hz: number): string {
 
 // --- HELPER: Beat Freq to BPM ---
 function getTargetBPM(beatFreq: number): string {
-    // Delta (0.5 - 4Hz) -> Slow BPM
     if (beatFreq <= 4) return "30-50 BPM (Largo)";
-    // Theta (4 - 8Hz) -> Med BPM
     if (beatFreq <= 8) return "50-70 BPM (Adagio)";
-    // Alpha/Beta -> Faster
     return "70-90 BPM (Andante)";
 }
 
@@ -65,24 +62,42 @@ export const generateLullaby = async (
   mood: string, 
   previousContext?: string, 
   carrierFreq: number = 200, 
-  beatFreq: number = 4
+  beatFreq: number = 4,
+  musicalSettings?: MusicalSettings
 ): Promise<Composition | null> => {
   try {
     const musicalKey = getApproximateKey(carrierFreq);
     const targetBPM = getTargetBPM(beatFreq);
 
+    // Construct constraint string based on user settings
+    let musicalConstraints = `1. Key: Compose strictly in the key of ${musicalKey} to harmonize with the carrier drone.`;
+    
+    if (musicalSettings?.scale && musicalSettings.scale !== 'Auto') {
+        musicalConstraints += `\n      2. Scale: Use the ${musicalSettings.scale} scale/mode strictly.`;
+    } else {
+        musicalConstraints += `\n      2. Scale: Use Major or Lydian mode.`;
+    }
+
+    let styleInstruction = "Pad-like, sustained notes.";
+    if (musicalSettings?.style && musicalSettings.style !== 'Auto') {
+        if (musicalSettings.style === 'Bells') styleInstruction = "Short attack, long decay, sparse bell-like clusters.";
+        if (musicalSettings.style === 'Piano') styleInstruction = "Gentle piano voicing, arpeggiated slow chords.";
+        if (musicalSettings.style === 'Minimal') styleInstruction = "Very sparse, only 3-4 notes total, long duration.";
+    }
+
+    const specificMood = (musicalSettings?.mood && musicalSettings.mood !== 'Auto') ? musicalSettings.mood : mood;
+
     const prompt = `
       Context: The Binaural carrier is ${carrierFreq}Hz (Approx ${musicalKey}). 
       The Target Sleep Cycle BPM is ${targetBPM}.
-      Atmosphere: ${mood}.
+      Atmosphere/Mood: ${specificMood}.
       
       Task: Generate a rich, multi-layered ambient loop (15-20s).
       
       Musical Rules:
-      1. Key: Compose strictly in the key of ${musicalKey} (Major or Lydian) to harmonize with the carrier drone.
-      2. Harmony: Use chords (multiple notes with same startTime) or lush intervals (3rds, 5ths, 9ths).
+      ${musicalConstraints}
       3. Rhythm: Polyrhythmic feel, but gentle. Avoid rigid grid.
-      4. Instrumentation: Pad-like, sustained notes.
+      4. Style/Instrumentation: ${styleInstruction}
       ${previousContext ? `Variation: Evolve from previous track "${previousContext}".` : ''}
     `;
 
@@ -105,10 +120,14 @@ export const generateLullaby = async (
 };
 
 export const orchestrateExperience = async (userPrompt: string, params?: PersonalizationParams): Promise<AgenticConfig | null> => {
-   // Existing orchestrator logic stays mostly same, just ensuring prompt quality
    const context = params ? `Baby:${params.babyType}, Emotion:${params.currentEmotion}, Time:${params.timeOfDay}, Env:${params.environment}` : '';
+   
+   // We inject the musical preference into the context for the agent to consider
+   const musicalPref = params?.musicalSettings ? `Preferred Scale: ${params.musicalSettings.scale}, Preferred Style: ${params.musicalSettings.style}` : '';
+
    const systemPrompt = `
-      Act as Sleep Scientist. User Request: "${userPrompt}". Context: ${context}.
+      Act as Sleep Scientist. User Request: "${userPrompt}". 
+      Context: ${context}. ${musicalPref}.
       Output JSON config. Choose freq based on sleep science (Delta=Sleep, Theta=Relax).
    `;
    try {

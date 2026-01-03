@@ -2,12 +2,12 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Play, Pause, RefreshCw, Volume2, Moon, Radio, 
   Wind, Waves, Timer, Settings, Clock, Sparkles, 
-  Mic, MicOff, Save, Download, Sliders, X
+  Mic, MicOff, Save, Download, Sliders, X, Music
 } from 'lucide-react';
 import { audioEngine } from './services/audioEngine';
 import { generateLullaby, orchestrateExperience } from './services/geminiService';
 import Visualizer from './components/Visualizer';
-import { Composition, NoiseType, PersonalizationParams, AgenticConfig } from './types';
+import { Composition, NoiseType, PersonalizationParams, AgenticConfig, MusicalSettings } from './types';
 
 // --- CONSTANTS ---
 const STATIONS = [
@@ -55,11 +55,19 @@ export default function App() {
   // Advanced Studio
   const [showStudio, setShowStudio] = useState(false);
   const [magicPrompt, setMagicPrompt] = useState('');
+  
+  // Personalization & Musical Settings
   const [personalParams, setPersonalParams] = useState<PersonalizationParams>({
     babyType: 'Sensitive',
     currentEmotion: 'Restless',
     timeOfDay: 'Night',
     environment: 'Quiet'
+  });
+  
+  const [musicalSettings, setMusicalSettings] = useState<MusicalSettings>({
+    scale: 'Auto',
+    style: 'Auto',
+    mood: 'Auto'
   });
 
   // Offline Library
@@ -120,7 +128,13 @@ export default function App() {
     setIsGenerating(true);
     setAgentStatus('Analizando petición...');
 
-    const config = await orchestrateExperience(magicPrompt, personalParams);
+    // Combine params
+    const fullParams: PersonalizationParams = {
+        ...personalParams,
+        musicalSettings: musicalSettings
+    };
+
+    const config = await orchestrateExperience(magicPrompt, fullParams);
     
     if (config) {
       setAgentStatus('Configurando motor de audio...');
@@ -135,12 +149,13 @@ export default function App() {
       setNoiseType(config.noiseType);
       
       setAgentStatus('Armonizando melodía...');
-      // Pass the specific frequencies to align melody key
+      // Pass frequencies AND musical settings
       const newComp = await generateLullaby(
           config.musicPrompt, 
           undefined, 
           config.carrierFreq, 
-          config.beatFreq
+          config.beatFreq,
+          musicalSettings
       );
       if (newComp) {
         setComposition(newComp);
@@ -160,12 +175,12 @@ export default function App() {
   const generateNextSegment = async () => {
     setIsGenerating(true);
     const prevContext = composition ? composition.name : '';
-    // Pass current station frequencies for harmonic alignment
     const newComp = await generateLullaby(
         currentStation.mood, 
         prevContext,
         currentStation.carrier,
-        currentStation.beat
+        currentStation.beat,
+        musicalSettings // Use current settings for next loop too
     );
     if (newComp) {
       if (!composition) setComposition(newComp);
@@ -198,7 +213,7 @@ export default function App() {
       if (!isGenerating && !composition) generateNextSegment();
       musicLoopRef.current = setTimeout(playMusicLoop, 1000);
     }
-  }, [isPlaying, composition, nextComposition, isGenerating, currentStation]);
+  }, [isPlaying, composition, nextComposition, isGenerating, currentStation, musicalSettings]);
 
   // --- PRESETS ---
   const savePreset = () => {
@@ -294,6 +309,7 @@ export default function App() {
            <div className="flex flex-wrap justify-center gap-2 text-slate-400 text-sm">
              <span className="bg-slate-900/50 px-3 py-1 rounded-full border border-white/5">{currentStation.desc}</span>
              {composition?.key && <span className="bg-indigo-900/30 px-3 py-1 rounded-full border border-indigo-500/20 text-indigo-300 text-xs">Tono: {composition.key}</span>}
+             {musicalSettings.scale !== 'Auto' && <span className="bg-pink-900/30 px-3 py-1 rounded-full border border-pink-500/20 text-pink-300 text-xs">Escala: {musicalSettings.scale}</span>}
            </div>
         </div>
 
@@ -383,23 +399,30 @@ export default function App() {
                 </h2>
                 <button onClick={() => setShowStudio(false)}><X className="text-slate-400" /></button>
              </div>
+             
              <div className="space-y-8">
+                
+                {/* Magic Prompt */}
                 <div className="space-y-2">
                    <label className="text-sm font-bold text-indigo-300 uppercase tracking-wide">Agente Mágico</label>
                    <textarea 
                       value={magicPrompt}
                       onChange={e => setMagicPrompt(e.target.value)}
                       placeholder="Describe: 'Está lloviendo y el bebé no deja de llorar...'"
-                      className="w-full h-32 bg-slate-800 border border-slate-700 rounded-xl p-4 text-sm text-white focus:ring-2 ring-indigo-500 outline-none resize-none"
+                      className="w-full h-24 bg-slate-800 border border-slate-700 rounded-xl p-4 text-sm text-white focus:ring-2 ring-indigo-500 outline-none resize-none"
                    />
                 </div>
+
+                {/* Personalization */}
                 <div className="space-y-4">
-                   <label className="text-sm font-bold text-slate-500 uppercase tracking-wide">Parámetros Finos</label>
+                   <label className="text-sm font-bold text-slate-500 uppercase tracking-wide flex items-center gap-2">
+                      <Sliders className="w-4 h-4" /> Personalización
+                   </label>
                    <div className="grid grid-cols-2 gap-4">
                       <div>
                         <span className="text-xs text-slate-400 block mb-1">Tipo de Bebé</span>
                         <select 
-                          className="w-full bg-slate-800 rounded-lg p-2 text-sm outline-none"
+                          className="w-full bg-slate-800 rounded-lg p-2 text-sm outline-none border border-slate-700 focus:border-indigo-500"
                           value={personalParams.babyType}
                           onChange={e => setPersonalParams({...personalParams, babyType: e.target.value as any})}
                         >
@@ -412,7 +435,7 @@ export default function App() {
                       <div>
                         <span className="text-xs text-slate-400 block mb-1">Emoción Actual</span>
                         <select 
-                          className="w-full bg-slate-800 rounded-lg p-2 text-sm outline-none"
+                          className="w-full bg-slate-800 rounded-lg p-2 text-sm outline-none border border-slate-700 focus:border-indigo-500"
                           value={personalParams.currentEmotion}
                           onChange={e => setPersonalParams({...personalParams, currentEmotion: e.target.value as any})}
                         >
@@ -424,10 +447,64 @@ export default function App() {
                       </div>
                    </div>
                 </div>
+
+                {/* New Musical Settings */}
+                <div className="space-y-4 pt-4 border-t border-white/10">
+                   <label className="text-sm font-bold text-pink-400 uppercase tracking-wide flex items-center gap-2">
+                      <Music className="w-4 h-4" /> Configuración Musical
+                   </label>
+                   <div className="grid grid-cols-1 gap-4">
+                      <div className="grid grid-cols-3 gap-3">
+                         <div>
+                            <span className="text-xs text-slate-400 block mb-1">Escala</span>
+                            <select 
+                              className="w-full bg-slate-800 rounded-lg p-2 text-xs outline-none border border-slate-700 focus:border-pink-500"
+                              value={musicalSettings.scale}
+                              onChange={e => setMusicalSettings({...musicalSettings, scale: e.target.value as any})}
+                            >
+                              <option value="Auto">Auto</option>
+                              <option value="Pentatonic">Pentatónica</option>
+                              <option value="Lydian">Lidia (Sueño)</option>
+                              <option value="Dorian">Dórica (Misterio)</option>
+                              <option value="Major">Mayor (Feliz)</option>
+                            </select>
+                         </div>
+                         <div>
+                            <span className="text-xs text-slate-400 block mb-1">Estilo</span>
+                            <select 
+                              className="w-full bg-slate-800 rounded-lg p-2 text-xs outline-none border border-slate-700 focus:border-pink-500"
+                              value={musicalSettings.style}
+                              onChange={e => setMusicalSettings({...musicalSettings, style: e.target.value as any})}
+                            >
+                              <option value="Auto">Auto</option>
+                              <option value="Pads">Pads Suaves</option>
+                              <option value="Bells">Campanas</option>
+                              <option value="Piano">Piano</option>
+                              <option value="Minimal">Minimalista</option>
+                            </select>
+                         </div>
+                         <div>
+                            <span className="text-xs text-slate-400 block mb-1">Mood</span>
+                            <select 
+                              className="w-full bg-slate-800 rounded-lg p-2 text-xs outline-none border border-slate-700 focus:border-pink-500"
+                              value={musicalSettings.mood}
+                              onChange={e => setMusicalSettings({...musicalSettings, mood: e.target.value as any})}
+                            >
+                              <option value="Auto">Auto</option>
+                              <option value="Ethereal">Etéreo</option>
+                              <option value="Warm">Cálido</option>
+                              <option value="Melancholic">Melancólico</option>
+                              <option value="Cosmic">Cósmico</option>
+                            </select>
+                         </div>
+                      </div>
+                   </div>
+                </div>
+
                 <button 
                   onClick={handleMagicAgent}
                   disabled={isGenerating || !magicPrompt}
-                  className="w-full py-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold tracking-wide shadow-lg shadow-indigo-900/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                  className="w-full py-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold tracking-wide shadow-lg shadow-indigo-900/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all mt-6"
                 >
                   {isGenerating ? 'Orquestando Agentes...' : 'Generar Experiencia'}
                 </button>
